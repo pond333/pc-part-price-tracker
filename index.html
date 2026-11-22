@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <title>PC Part Price Tracker</title>
 <style>
   :root {
@@ -78,6 +80,26 @@
   .src b { font-weight: 600; } .src span { color: var(--text-2); } .src a { color: var(--accent); }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: center; background: var(--good); }
   .dot.bad { background: var(--bad); }
+  @media (max-width: 600px) {
+    main { padding: 14px 10px 32px; }
+    h1 { font-size: 19px; }
+    header { margin-bottom: 12px; }
+    .filters { gap: 6px 10px; margin-bottom: 10px; }
+    .field { width: 100%; flex-direction: row; align-items: center; gap: 8px; }
+    .field > span { width: 58px; flex: none; font-size: 10px; }
+    .field .seg { flex: 1; min-width: 0; }
+    .seg { display: flex; overflow-x: auto; scrollbar-width: none; }
+    .seg::-webkit-scrollbar { display: none; }
+    .seg button { flex: 1 0 auto; padding: 6px 8px; font-size: 13px; }
+    .card { padding: 10px; border-radius: 10px; }
+    .chip { padding: 5px 10px 5px 8px; font-size: 12.5px; }
+    .chips { gap: 5px; margin-bottom: 10px; }
+    .hint { margin-bottom: 4px; }
+    svg { height: 300px; }
+    svg text { font-size: 10.5px; }
+    th, td { padding: 6px 6px; font-size: 13px; }
+    .src { font-size: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -89,8 +111,8 @@
 
   <div class="filters">
     <label class="field"><span>Part</span><div class="seg" id="fCat"></div></label>
-    <label class="field" id="groupField"><span>Price type</span><div class="seg" id="fGroup"></div></label>
-    <label class="field"><span>Time range</span><div class="seg" id="fRange"></div></label>
+    <label class="field" id="groupField"><span>Type</span><div class="seg" id="fGroup"></div></label>
+    <label class="field"><span>Range</span><div class="seg" id="fRange"></div></label>
     <label class="field"><span>Interval</span><div class="seg" id="fInterval"></div></label>
     <label class="field"><span>Price</span><div class="seg" id="fMetric"></div></label>
   </div>
@@ -256,13 +278,13 @@
       });
       chips.appendChild(b);
     });
-    $('chipHint').textContent = count >= MAX_SERIES ? 'Up to ' + MAX_SERIES + ' lines at once. Deselect one to add another.' : 'Click a name to add or remove its line. Hover the chart for the exact price on any date.';
+    $('chipHint').textContent = count >= MAX_SERIES ? 'Up to ' + MAX_SERIES + ' lines at once. Deselect one to add another.' : 'Click a name to add or remove its line. Hover or tap the chart for the exact price on any date.';
     $('groupNote').textContent = g.note || '';
   }
 
   // ---- chart
   function renderChart() {
-    var host = $('chart'), W = host.clientWidth || 900, H = 400;
+    var host = $('chart'), W = host.clientWidth || 900, H = host.clientHeight || 400, narrow = W < 560;
     var map = picked(), ids = Object.keys(map).sort(function (a, b) { return map[a] - map[b]; });
     var to = today(), from = state.range ? to - state.range : 0;
     var lines = [];
@@ -286,9 +308,9 @@
     if (state.range) x0 = Math.min(x0, Math.max(from, x0)); // start at first data inside the range
     if (x1 === x0) x1 = x0 + 1;
     var pad = (y1 - y0) * 0.08 || y1 * 0.1 || 1;
-    var yt = niceTicks(Math.max(0, y0 - pad), y1 + pad, 8);
-    var direct = withData.length <= 4;
-    var m = { l: 58, r: direct ? 118 : 18, t: 12, b: 30 };
+    var yt = niceTicks(Math.max(0, y0 - pad), y1 + pad, narrow ? 5 : 8);
+    var direct = withData.length <= 4 && !narrow;
+    var m = { l: narrow ? 50 : 58, r: direct ? 118 : narrow ? 10 : 18, t: 12, b: 30 };
     var X = function (d) { return m.l + (d - x0) / (x1 - x0) * (W - m.l - m.r); };
     var Y = function (v) { return m.t + (1 - (v - yt.lo) / (yt.hi - yt.lo)) * (H - m.t - m.b); };
 
@@ -298,6 +320,7 @@
     });
     // x ticks: years, quarters or months depending on the span
     var spanDays = x1 - x0, stepM = spanDays > 1500 ? 12 : spanDays > 700 ? 6 : spanDays > 300 ? 3 : spanDays > 100 ? 1 : 0;
+    if (stepM && narrow) stepM = { 1: 3, 3: 6, 6: 12, 12: 12 }[stepM];
     if (stepM) {
       var t = dayToDate(x0), y = t.getUTCFullYear(), mo = Math.ceil((t.getUTCMonth() + (t.getUTCDate() > 1 ? 1 : 0)) / stepM) * stepM;
       for (;; mo += stepM) {
@@ -307,7 +330,7 @@
         host.appendChild(svg('text', { x: X(d), y: H - m.b + 19, 'text-anchor': 'middle' }, isJan || stepM === 12 ? String(dd.getUTCFullYear()) : MONTHS[dd.getUTCMonth()] + (stepM >= 3 ? ' ' + String(dd.getUTCFullYear()).slice(2) : '')));
       }
     } else {
-      var stepD = spanDays > 45 ? 14 : 7;
+      var stepD = (spanDays > 45 ? 14 : 7) * (narrow ? 2 : 1);
       for (var d2 = Math.ceil(x0 / stepD) * stepD; d2 <= x1; d2 += stepD) {
         var t2 = dayToDate(d2);
         host.appendChild(svg('text', { x: X(d2), y: H - m.b + 19, 'text-anchor': 'middle' }, MONTHS[t2.getUTCMonth()] + ' ' + t2.getUTCDate()));
@@ -350,14 +373,14 @@
     });
     var xs = {};
     withData.forEach(function (l) { l.pts.forEach(function (p) { xs[p[0]] = 1; }); });
-    plot = { lines: withData, X: X, Y: Y, xs: Object.keys(xs).map(Number).sort(function (a, b) { return a - b; }), cross: cross, dots: dots, W: W, m: m, x0: x0, x1: x1 };
+    plot = { lines: withData, X: X, Y: Y, xs: Object.keys(xs).map(Number).sort(function (a, b) { return a - b; }), cross: cross, dots: dots, W: W, H: H, m: m, x0: x0, x1: x1 };
     renderTable(lines, from, to);
   }
 
   function hover(evt) {
     if (!plot) return;
     var rect = $('chart').getBoundingClientRect(), px = (evt.clientX - rect.left) * (plot.W / rect.width);
-    var py = (evt.clientY - rect.top) * (400 / rect.height);
+    var py = (evt.clientY - rect.top) * (plot.H / rect.height);
     var target = plot.x0 + (px - plot.m.l) / (plot.W - plot.m.l - plot.m.r) * (plot.x1 - plot.x0);
     var xs = plot.xs, lo = 0, hi = xs.length - 1;
     while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (xs[mid] < target) lo = mid; else hi = mid; }
@@ -472,6 +495,7 @@
     fetch('api/update', { method: 'POST' }).then(function () { setTimeout(poll, 400); });
   });
   $('chart').addEventListener('pointermove', hover);
+  $('chart').addEventListener('pointerdown', hover);
   $('chart').addEventListener('mousemove', hover);
   $('chart').addEventListener('mouseleave', unhover);
   $('chart').addEventListener('pointerleave', unhover);
