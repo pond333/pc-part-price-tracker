@@ -1,0 +1,5 @@
+data/prices.js
+data/status.json
+data/*.tmp
+.claude/
+__pycache__/

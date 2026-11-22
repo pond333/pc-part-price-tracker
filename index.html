@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PC Part Price Tracker</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f3f0; --surface: #fcfcfb; --border: #e2e0da; --grid: #e9e7e1;
+    --text: #0b0b0b; --text-2: #52514e; --text-3: #85837c; --accent: #2a78d6; --wash: #eceae4;
+    --good: #0a7a2f; --bad: #c0392b;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #111110; --surface: #1a1a19; --border: #32312e; --grid: #2a2927;
+      --text: #f0efec; --text-2: #c3c2b7; --text-3: #8d8c84; --accent: #3987e5; --wash: #262523;
+      --good: #4cc272; --bad: #ee7b6c;
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s8:#e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--page); color: var(--text);
+         font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 18px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  .status { color: var(--text-2); font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .btn { border: 1px solid var(--border); background: var(--surface); border-radius: 7px; padding: 4px 10px; font-size: 13px; }
+  .btn:hover { background: var(--wash); } .btn:disabled { opacity: .55; cursor: default; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: flex-end; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field > span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 2px; }
+  .seg button { border: 0; background: none; padding: 5px 11px; border-radius: 6px; color: var(--text-2); white-space: nowrap; }
+  .seg button:hover { background: var(--wash); }
+  .seg button[aria-pressed="true"] { background: var(--text); color: var(--surface); font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .chip { border: 1px solid var(--border); background: none; border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 13px;
+          color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; }
+  .brk { flex-basis: 100%; height: 0; }
+  .chip:hover { background: var(--wash); }
+  .chip i { width: 12px; height: 3px; border-radius: 2px; background: var(--border); display: inline-block; }
+  .chip[aria-pressed="true"] { color: var(--text); border-color: var(--text-3); font-weight: 600; }
+  .chip:disabled { opacity: .4; cursor: default; }
+  .hint { color: var(--text-3); font-size: 12px; margin: -6px 0 12px; }
+  #chartWrap { position: relative; }
+  svg { display: block; width: 100%; height: 400px; touch-action: pan-y; cursor: crosshair; }
+  svg text { fill: var(--text-3); font-size: 11.5px; }
+  svg .lbl { fill: var(--text-2); font-size: 12px; font-weight: 600; }
+  .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); text-align: center; padding: 0 40px; }
+  #tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
+         box-shadow: 0 6px 20px rgba(0,0,0,.14); padding: 9px 11px; font-size: 12.5px; min-width: 170px; display: none; z-index: 2; }
+  #tip .d { color: var(--text-2); margin-bottom: 5px; }
+  #tip .r { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  #tip .r i { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+  #tip .r b { margin-left: auto; padding-left: 14px; font-variant-numeric: tabular-nums; }
+  #tip .r span { color: var(--text-2); }
+  #tip .r { padding: 2px 6px; margin: 0 -6px; border-radius: 5px; opacity: .75; }
+  #tip .r.on { background: var(--wash); opacity: 1; font-size: 14px; } #tip .r.on span { color: var(--text); font-weight: 600; }
+  #tip .d { font-weight: 600; color: var(--text); }
+  .note { color: var(--text-3); font-size: 12px; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 8px; border-top: 1px solid var(--grid); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); font-weight: 500; border-top: 0; }
+  th:first-child, td:first-child { text-align: left; }
+  td:first-child { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  td:first-child i { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+  .up { color: var(--bad); } .down { color: var(--good); }
+  .tablewrap { overflow-x: auto; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); font-weight: 500; margin: 26px 0 8px; }
+  .src { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; flex-wrap: wrap; }
+  .src b { font-weight: 600; } .src span { color: var(--text-2); } .src a { color: var(--accent); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: center; background: var(--good); }
+  .dot.bad { background: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>PC Part Price Tracker</h1>
+    <div class="status"><span id="statusText">Loading…</span><button class="btn" id="checkNow" hidden>Check now</button></div>
+  </header>
+
+  <div class="filters">
+    <label class="field"><span>Part</span><div class="seg" id="fCat"></div></label>
+    <label class="field" id="groupField"><span>Price type</span><div class="seg" id="fGroup"></div></label>
+    <label class="field"><span>Time range</span><div class="seg" id="fRange"></div></label>
+    <label class="field"><span>Interval</span><div class="seg" id="fInterval"></div></label>
+    <label class="field"><span>Price</span><div class="seg" id="fMetric"></div></label>
+  </div>
+
+  <div class="card">
+    <div class="chips" id="chips"></div>
+    <div class="hint" id="chipHint"></div>
+    <div id="chartWrap">
+      <svg id="chart" role="img" aria-label="Price history chart"></svg>
+      <div class="empty" id="empty" hidden></div>
+      <div id="tip"></div>
+    </div>
+    <div class="note" id="groupNote"></div>
+    <div class="tablewrap"><table id="summary"></table></div>
+  </div>
+
+  <h2>Data sources</h2>
+  <div id="sources"></div>
+  <div class="note">The bot re-checks every source on a fixed schedule. A new point appears on the chart only when a source has published newer prices, so the latest point can be older than the last check.</div>
+</main>
+
+<script src="data/prices.js"></script>
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var CATS = [['ram', 'RAM'], ['ssd', 'SSD'], ['gpu', 'GPU']];
+  var RANGES = [['1M', 30], ['3M', 91], ['6M', 182], ['1Y', 365], ['3Y', 1096], ['All', 0]];
+  var INTERVALS = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly'], ['year', 'Yearly']];
+  var DEFAULTS = {
+    ram: ['64GB DDR5 (eBay)', '32GB DDR5', '16GB DDR5', '32GB DDR4'],
+    'ram-new': ['64GB DDR5', '32GB DDR5', '16GB DDR5'],
+    ssd: ['2TB NVMe PCIe Gen4', '2TB NVMe PCIe Gen5'],
+    'gpu-new': ['RTX 5090', 'RTX 4090', 'RTX 5080', 'RTX 5070'],
+    'gpu-used': ['RTX 3090', 'RTX 4070 Ti', 'RTX 3080', 'RTX 3070'],
+    'gpu-retail': ['RTX 5080']
+  };
+  var MAX_SERIES = 8;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var state = { cat: 'ram', group: 'ram', range: 1096, interval: 'day', metric: 'avg', picked: {} };
+  var data = null, plot = null, serverStatus = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    for (var k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function svg(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function dayToDate(d) { return new Date(d * 86400000); }
+  function today() { return Math.floor(Date.now() / 86400000); }
+  function money(v) {
+    if (v == null) return '–';
+    return '$' + v.toLocaleString('en-US', { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
+  }
+  function fmtDay(d, interval) {
+    var t = dayToDate(d), y = t.getUTCFullYear(), m = MONTHS[t.getUTCMonth()];
+    if (interval === 'year') return String(y);
+    if (interval === 'month') return m + ' ' + y;
+    return (interval === 'week' ? 'Week of ' : '') + m + ' ' + t.getUTCDate() + ', ' + y;
+  }
+  function ago(iso) {
+    if (!iso) return 'never';
+    var s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+    if (s < 90) return 'just now';
+    if (s < 5400) return Math.round(s / 60) + ' min ago';
+    if (s < 129600) return Math.round(s / 3600) + ' h ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function until(iso) {
+    var s = (Date.parse(iso) - Date.now()) / 1000;
+    if (!(s > 0)) return 'soon';
+    var mins = Math.round(s / 60), h = Math.floor(mins / 60), m = mins % 60;
+    return h ? h + ' h ' + m + ' min' : m + ' min';
+  }
+
+  // ---- data shaping
+  function groupsIn(cat) {
+    return Object.keys(data.groups).filter(function (g) {
+      return data.groups[g].category === cat && data.series.some(function (s) { return s.group === g; });
+    }).sort(function (a, b) { return order(a) - order(b); });
+  }
+  function order(g) { return ['ram', 'ram-new', 'ssd', 'gpu-new', 'gpu-used', 'gpu-retail'].indexOf(g); }
+  function seriesIn(group) { return data.series.filter(function (s) { return s.group === group; }); }
+  function picked() {
+    if (!state.picked[state.group]) {
+      var all = seriesIn(state.group), want = DEFAULTS[state.group] || [], map = {}, slot = 0;
+      all.forEach(function (s) { if (want.indexOf(s.name) >= 0) map[s.id] = slot++; });
+      if (!slot) all.slice(0, 4).forEach(function (s) { map[s.id] = slot++; });
+      state.picked[state.group] = map;
+    }
+    return state.picked[state.group];
+  }
+  function bucketOf(day, interval) {
+    if (interval === 'day') return day;
+    if (interval === 'week') return Math.floor((day + 3) / 7) * 7 - 3;   // Monday
+    var t = dayToDate(day);
+    return Date.UTC(t.getUTCFullYear(), interval === 'year' ? 0 : t.getUTCMonth(), 1) / 86400000;
+  }
+  function shape(s, from, to) {
+    var vals = s[state.metric], out = [], cur = null, sum = 0, n = 0;
+    for (var i = 0; i < s.days.length; i++) {
+      var d = s.days[i], v = vals[i];
+      if (d < from || d > to || v == null) continue;
+      var b = bucketOf(d, state.interval);
+      if (b !== cur) { if (n) out.push([cur, sum / n]); cur = b; sum = 0; n = 0; }
+      sum += v; n++;
+    }
+    if (n) out.push([cur, sum / n]);
+    return out;
+  }
+  function niceTicks(lo, hi, count) {
+    var span = hi - lo || 1, step = Math.pow(10, Math.floor(Math.log10(span / count)));
+    var err = span / count / step;
+    step *= err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1;
+    var ticks = [];
+    for (var v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(v);
+    return { ticks: ticks, lo: Math.floor(lo / step) * step, hi: Math.ceil(hi / step) * step };
+  }
+
+  // ---- controls
+  function seg(host, options, current, onPick) {
+    host.textContent = '';
+    options.forEach(function (o) {
+      var b = el('button', { type: 'button', 'aria-pressed': String(o[0] === current) }, o[1]);
+      b.addEventListener('click', function () { onPick(o[0]); render(); });
+      host.appendChild(b);
+    });
+  }
+  function renderControls() {
+    seg($('fCat'), CATS, state.cat, function (v) { state.cat = v; state.group = groupsIn(v)[0] || v; });
+    var groups = groupsIn(state.cat);
+    if (groups.indexOf(state.group) < 0) state.group = groups[0];
+    $('groupField').hidden = groups.length < 2;
+    seg($('fGroup'), groups.map(function (g) { return [g, data.groups[g].label]; }), state.group, function (v) { state.group = v; });
+    seg($('fRange'), RANGES.map(function (r) { return [r[1], r[0]]; }), state.range, function (v) { state.range = v; });
+    seg($('fInterval'), INTERVALS, state.interval, function (v) { state.interval = v; });
+    var g = data.groups[state.group] || { metrics: {} };
+    seg($('fMetric'), ['avg', 'min', 'max'].map(function (m) { return [m, g.metrics[m]]; }), state.metric, function (v) { state.metric = v; });
+
+    var chips = $('chips'), map = picked(), count = Object.keys(map).length;
+    chips.textContent = '';
+    var lastGen = null;
+    seriesIn(state.group).forEach(function (s) {
+      var gen = (s.name.match(/DDR\d/) || [null])[0];
+      if (lastGen && gen && gen !== lastGen) chips.appendChild(el('span', { class: 'brk' }));
+      lastGen = gen;
+      var on = s.id in map;
+      var b = el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on) });
+      var key = el('i'); if (on) key.style.background = 'var(--s' + (map[s.id] + 1) + ')';
+      b.appendChild(key); b.appendChild(document.createTextNode(s.name));
+      if (!on && count >= MAX_SERIES) b.disabled = true;
+      b.addEventListener('click', function () {
+        if (on) delete map[s.id];
+        else { for (var slot = 0; slot < MAX_SERIES; slot++) if (!Object.keys(map).some(function (k) { return map[k] === slot; })) { map[s.id] = slot; break; } }
+        render();
+      });
+      chips.appendChild(b);
+    });
+    $('chipHint').textContent = count >= MAX_SERIES ? 'Up to ' + MAX_SERIES + ' lines at once. Deselect one to add another.' : 'Click a name to add or remove its line. Hover the chart for the exact price on any date.';
+    $('groupNote').textContent = g.note || '';
+  }
+
+  // ---- chart
+  function renderChart() {
+    var host = $('chart'), W = host.clientWidth || 900, H = 400;
+    var map = picked(), ids = Object.keys(map).sort(function (a, b) { return map[a] - map[b]; });
+    var to = today(), from = state.range ? to - state.range : 0;
+    var lines = [];
+    seriesIn(state.group).forEach(function (s) {
+      if (s.id in map) lines.push({ s: s, slot: map[s.id], pts: shape(s, from, to) });
+    });
+    lines.sort(function (a, b) { return a.slot - b.slot; });
+    var withData = lines.filter(function (l) { return l.pts.length; });
+    host.textContent = ''; host.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    host.appendChild(svg('rect', { x: 0, y: 0, width: W, height: H, fill: 'transparent' }));
+    $('tip').style.display = 'none';
+    plot = null;
+    var empty = $('empty');
+    empty.hidden = !!withData.length;
+    if (!withData.length) {
+      empty.textContent = ids.length ? 'No prices in this time range for the selected items. Try a longer range.' : 'Pick at least one item above.';
+      renderTable(lines, from, to); return;
+    }
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    withData.forEach(function (l) { l.pts.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }); });
+    if (state.range) x0 = Math.min(x0, Math.max(from, x0)); // start at first data inside the range
+    if (x1 === x0) x1 = x0 + 1;
+    var pad = (y1 - y0) * 0.08 || y1 * 0.1 || 1;
+    var yt = niceTicks(Math.max(0, y0 - pad), y1 + pad, 8);
+    var direct = withData.length <= 4;
+    var m = { l: 58, r: direct ? 118 : 18, t: 12, b: 30 };
+    var X = function (d) { return m.l + (d - x0) / (x1 - x0) * (W - m.l - m.r); };
+    var Y = function (v) { return m.t + (1 - (v - yt.lo) / (yt.hi - yt.lo)) * (H - m.t - m.b); };
+
+    yt.ticks.forEach(function (v) {
+      host.appendChild(svg('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: 'var(--grid)', 'stroke-width': 1 }));
+      host.appendChild(svg('text', { x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end' }, money(v)));
+    });
+    // x ticks: years, quarters or months depending on the span
+    var spanDays = x1 - x0, stepM = spanDays > 1500 ? 12 : spanDays > 700 ? 6 : spanDays > 300 ? 3 : spanDays > 100 ? 1 : 0;
+    if (stepM) {
+      var t = dayToDate(x0), y = t.getUTCFullYear(), mo = Math.ceil((t.getUTCMonth() + (t.getUTCDate() > 1 ? 1 : 0)) / stepM) * stepM;
+      for (;; mo += stepM) {
+        var d = Date.UTC(y, mo, 1) / 86400000; if (d > x1) break;
+        var dd = dayToDate(d), isJan = dd.getUTCMonth() === 0;
+        host.appendChild(svg('line', { x1: X(d), x2: X(d), y1: H - m.b, y2: H - m.b + 5, stroke: 'var(--border)' }));
+        host.appendChild(svg('text', { x: X(d), y: H - m.b + 19, 'text-anchor': 'middle' }, isJan || stepM === 12 ? String(dd.getUTCFullYear()) : MONTHS[dd.getUTCMonth()] + (stepM >= 3 ? ' ' + String(dd.getUTCFullYear()).slice(2) : '')));
+      }
+    } else {
+      var stepD = spanDays > 45 ? 14 : 7;
+      for (var d2 = Math.ceil(x0 / stepD) * stepD; d2 <= x1; d2 += stepD) {
+        var t2 = dayToDate(d2);
+        host.appendChild(svg('text', { x: X(d2), y: H - m.b + 19, 'text-anchor': 'middle' }, MONTHS[t2.getUTCMonth()] + ' ' + t2.getUTCDate()));
+      }
+    }
+    host.appendChild(svg('line', { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: 'var(--border)' }));
+
+    var maxGap = { day: 10, week: 22, month: 95, year: 740 }[state.interval];
+    var ends = [];
+    withData.forEach(function (l) {
+      var dstr = '', gaps = '', prev = null;
+      l.pts.forEach(function (p) {
+        var pt = X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1);
+        if (prev && p[0] - prev[0] > maxGap) gaps += 'M' + X(prev[0]).toFixed(1) + ' ' + Y(prev[1]).toFixed(1) + 'L' + pt;
+        dstr += (prev == null || p[0] - prev[0] > maxGap ? 'M' : 'L') + pt;
+        prev = p;
+      });
+      var color = 'var(--s' + (l.slot + 1) + ')';
+      var g = svg('g');
+      if (gaps) g.appendChild(svg('path', { d: gaps, fill: 'none', stroke: color, 'stroke-width': 1.5, 'stroke-dasharray': '2 5', 'stroke-linecap': 'round', opacity: 0.7 }));
+      g.appendChild(svg('path', { d: dstr, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      host.appendChild(g); l.g = g;
+      var last = l.pts[l.pts.length - 1];
+      if (l.pts.length === 1) host.appendChild(svg('circle', { cx: X(last[0]), cy: Y(last[1]), r: 4, fill: color }));
+      ends.push({ y: Y(last[1]), x: X(last[0]), name: l.s.name, color: color });
+    });
+    if (direct) {
+      ends.sort(function (a, b) { return a.y - b.y; });
+      for (var i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 15) ends[i].y = ends[i - 1].y + 15;
+      ends.forEach(function (e) {
+        host.appendChild(svg('circle', { cx: e.x, cy: Math.min(e.y, H - m.b), r: 0 }));
+        host.appendChild(svg('text', { x: W - m.r + 8, y: Math.min(e.y, H - m.b) + 4, class: 'lbl' }, e.name));
+      });
+    }
+    var cross = svg('line', { y1: m.t, y2: H - m.b, stroke: 'var(--text-3)', 'stroke-width': 1, visibility: 'hidden' });
+    host.appendChild(cross);
+    var dots = withData.map(function (l) {
+      var c = svg('circle', { r: 4.5, fill: 'var(--s' + (l.slot + 1) + ')', stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden' });
+      host.appendChild(c); return c;
+    });
+    var xs = {};
+    withData.forEach(function (l) { l.pts.forEach(function (p) { xs[p[0]] = 1; }); });
+    plot = { lines: withData, X: X, Y: Y, xs: Object.keys(xs).map(Number).sort(function (a, b) { return a - b; }), cross: cross, dots: dots, W: W, m: m, x0: x0, x1: x1 };
+    renderTable(lines, from, to);
+  }
+
+  function hover(evt) {
+    if (!plot) return;
+    var rect = $('chart').getBoundingClientRect(), px = (evt.clientX - rect.left) * (plot.W / rect.width);
+    var py = (evt.clientY - rect.top) * (400 / rect.height);
+    var target = plot.x0 + (px - plot.m.l) / (plot.W - plot.m.l - plot.m.r) * (plot.x1 - plot.x0);
+    var xs = plot.xs, lo = 0, hi = xs.length - 1;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (xs[mid] < target) lo = mid; else hi = mid; }
+    var day = Math.abs(xs[lo] - target) <= Math.abs(xs[hi] - target) ? xs[lo] : xs[hi];
+    var cx = plot.X(day);
+    plot.cross.setAttribute('x1', cx); plot.cross.setAttribute('x2', cx); plot.cross.setAttribute('visibility', 'visible');
+    var tip = $('tip'); tip.textContent = '';
+    tip.appendChild(el('div', { class: 'd' }, fmtDay(day, state.interval)));
+    var rows = [];
+    plot.lines.forEach(function (l, i) {
+      var hit = null;
+      for (var j = 0; j < l.pts.length; j++) if (l.pts[j][0] === day) { hit = l.pts[j]; break; }
+      if (hit) { plot.dots[i].setAttribute('cx', cx); plot.dots[i].setAttribute('cy', plot.Y(hit[1])); }
+      plot.dots[i].setAttribute('visibility', hit ? 'visible' : 'hidden');
+      rows.push({ name: l.s.name, slot: l.slot, v: hit ? hit[1] : null, l: l, dy: hit ? Math.abs(plot.Y(hit[1]) - py) : Infinity });
+    });
+    var near = rows.reduce(function (a, b) { return b.dy < a.dy ? b : a; });
+    plot.lines.forEach(function (l, i) {
+      var on = near.dy === Infinity || l === near.l;
+      l.g.setAttribute('opacity', on ? 1 : 0.3);
+      l.g.lastChild.setAttribute('stroke-width', on && near.dy !== Infinity ? 3 : 2);
+      plot.dots[i].setAttribute('r', on ? 5.5 : 3.5);
+    });
+    rows.sort(function (a, b) { return (b.v == null ? -1 : b.v) - (a.v == null ? -1 : a.v); });
+    rows.forEach(function (r) {
+      var row = el('div', { class: 'r' + (r === near && r.v != null ? ' on' : '') }), key = el('i');
+      key.style.background = 'var(--s' + (r.slot + 1) + ')';
+      row.appendChild(key); row.appendChild(el('span', null, r.name)); row.appendChild(el('b', null, r.v == null ? 'no data' : '$' + r.v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+      tip.appendChild(row);
+    });
+    tip.style.display = 'block';
+    var wrapW = $('chartWrap').clientWidth, left = cx * (rect.width / plot.W) + 14;
+    if (left + tip.offsetWidth > wrapW - 4) left = cx * (rect.width / plot.W) - tip.offsetWidth - 14;
+    var top = (evt.clientY - rect.top) - tip.offsetHeight - 16;
+    if (top < 0) top = (evt.clientY - rect.top) + 20;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = top + 'px';
+  }
+  function unhover() {
+    if (!plot) return;
+    plot.cross.setAttribute('visibility', 'hidden');
+    plot.dots.forEach(function (d) { d.setAttribute('visibility', 'hidden'); });
+    plot.lines.forEach(function (l) { l.g.setAttribute('opacity', 1); l.g.lastChild.setAttribute('stroke-width', 2); });
+    $('tip').style.display = 'none';
+  }
+
+  function renderTable(lines, from, to) {
+    var table = $('summary'); table.textContent = '';
+    if (!lines.length) return;
+    var head = el('tr');
+    ['Item', 'Latest', 'Latest date', 'Change in range', 'Low in range', 'High in range'].forEach(function (h) { head.appendChild(el('th', null, h)); });
+    table.appendChild(head);
+    lines.forEach(function (l) {
+      var tr = el('tr'), td = el('td'), key = el('i');
+      key.style.background = 'var(--s' + (l.slot + 1) + ')';
+      td.appendChild(key); td.appendChild(document.createTextNode(l.s.name)); tr.appendChild(td);
+      var p = l.pts;
+      if (!p.length) { tr.appendChild(el('td', { colspan: 5 }, 'no prices in this range')); table.appendChild(tr); return; }
+      var first = p[0][1], last = p[p.length - 1][1], lo = Infinity, hi = -Infinity;
+      p.forEach(function (q) { lo = Math.min(lo, q[1]); hi = Math.max(hi, q[1]); });
+      var pct = (last - first) / first * 100;
+      tr.appendChild(el('td', null, money(last)));
+      tr.appendChild(el('td', null, fmtDay(p[p.length - 1][0], state.interval)));
+      var c = el('td', { class: pct > 0.05 ? 'up' : pct < -0.05 ? 'down' : '' }, (pct > 0 ? '▲ +' : pct < 0 ? '▼ ' : '') + pct.toFixed(1) + '%');
+      tr.appendChild(c);
+      tr.appendChild(el('td', null, money(lo))); tr.appendChild(el('td', null, money(hi)));
+      table.appendChild(tr);
+    });
+  }
+
+  function renderStatus() {
+    var txt = $('statusText'), btn = $('checkNow');
+    if (!data) { txt.textContent = 'No price data yet. Start the bot with: python3 tracker.py serve'; return; }
+    var running = serverStatus && serverStatus.running;
+    var parts = [running ? 'Checking prices now…' : 'Last checked ' + ago(data.generatedAt)];
+    if (!running && serverStatus && serverStatus.nextCheck) parts.push('next check in ' + until(serverStatus.nextCheck));
+    else if (!serverStatus) parts.push('re-checked every ' + data.intervalHours + ' h');
+    txt.textContent = parts.join(' · ');
+    btn.hidden = !serverStatus; btn.disabled = !!running;
+    var host = $('sources'); host.textContent = '';
+    data.sources.forEach(function (s) {
+      var row = el('div', { class: 'src' });
+      row.appendChild(el('i', { class: 'dot' + (s.ok ? '' : ' bad') }));
+      var a = el('a', { href: s.url, target: '_blank', rel: 'noopener' }, s.name); var b = el('b'); b.appendChild(a); row.appendChild(b);
+      row.appendChild(el('span', null, (s.latestDay ? 'newest prices: ' + fmtDay(s.latestDay, 'day') + ' · ' : '') + 'checked ' + ago(s.checkedAt) + ' · ' + (s.message || '')));
+      host.appendChild(row);
+    });
+  }
+
+  function render() {
+    renderStatus();
+    if (!data) { $('empty').hidden = false; $('empty').textContent = 'Waiting for the first price check to finish…'; return; }
+    renderControls(); renderChart();
+  }
+
+  // ---- live refresh
+  function reloadData() {
+    var s = document.createElement('script');
+    s.src = 'data/prices.js?t=' + Date.now();
+    s.onload = function () { data = window.PRICE_DATA; render(); s.remove(); };
+    s.onerror = function () { s.remove(); };
+    document.head.appendChild(s);
+  }
+  function poll() {
+    if (location.protocol.indexOf('http') !== 0) return;
+    fetch('api/status').then(function (r) { return r.json(); }).then(function (st) {
+      var was = serverStatus; serverStatus = st;
+      if (!data || (st.lastCheck && (!was || was.lastCheck !== st.lastCheck) && st.lastCheck > data.generatedAt) || (was && was.running && !st.running)) reloadData();
+      else renderStatus();
+    }).catch(function () { serverStatus = null; renderStatus(); });
+  }
+  $('checkNow').addEventListener('click', function () {
+    fetch('api/update', { method: 'POST' }).then(function () { setTimeout(poll, 400); });
+  });
+  $('chart').addEventListener('pointermove', hover);
+  $('chart').addEventListener('mousemove', hover);
+  $('chart').addEventListener('mouseleave', unhover);
+  $('chart').addEventListener('pointerleave', unhover);
+  window.addEventListener('resize', function () { if (data) renderChart(); });
+
+  data = window.PRICE_DATA || null;
+  render(); poll();
+  setInterval(poll, 15000);
+  setInterval(function () { if (!serverStatus) reloadData(); }, 600000);
+})();
+</script>
+</body>
+</html>
